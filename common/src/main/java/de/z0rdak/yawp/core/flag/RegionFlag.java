@@ -20,6 +20,7 @@ public enum RegionFlag {
     DROP_LOOT_ALL("drop-loot", FlagTagRegister.PLAYER_PREVENTION),
     /* also prevents drop-xp currently */
     DROP_LOOT_PLAYER("drop-loot-player", FlagTagRegister.PLAYER, FlagTagRegister.PLAYER_PREVENTION),
+    PASSIVE_DROPS("passive-drops", FlagTagRegister.ENVIRONMENT, FlagTagRegister.ENTITY),
     ENDERMAN_GRIEFING("enderman-griefing", FlagTagRegister.PROTECTION),
     ENDERMAN_TELEPORT_FROM_REGION("enderman-tp-from", FlagTagRegister.PROTECTION),
     ENDER_CHEST_ACCESS("access-enderchest", FlagTagRegister.PLAYER, FlagTagRegister.BLOCK),
@@ -36,6 +37,7 @@ public enum RegionFlag {
     HOE_TILL("till-farmland", FlagTagRegister.BLOCK, FlagTagRegister.PLAYER_PREVENTION),
     IGNITE_EXPLOSIVES("ignite-explosives", FlagTagRegister.BLOCK, FlagTagRegister.PLAYER_PREVENTION),
     FALL_DAMAGE("fall-damage", FlagTagRegister.PROTECTION, FlagTagRegister.ENVIRONMENT),
+    BLOCK_CONTACT_DAMAGE("block-contact-damage", FlagTagRegister.PROTECTION, FlagTagRegister.ENVIRONMENT),
     FALL_DAMAGE_PLAYERS("fall-damage-players", FlagTagRegister.PLAYER, FlagTagRegister.PROTECTION),
     INVINCIBLE("invincible", FlagTagRegister.BENEFICIAL, FlagTagRegister.PLAYER),
     KEEP_XP("keep-xp", FlagTagRegister.BENEFICIAL, FlagTagRegister.PLAYER),

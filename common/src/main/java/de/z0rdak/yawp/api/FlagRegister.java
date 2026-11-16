@@ -365,6 +365,10 @@ public class FlagRegister {
             new FlagMetaInfo(Set.of(), FlagFrequency.NORMAL));
     public static final Flag TRAMPLE_FARMLAND = new Flag(flagId("griefing/trample_farmland"),
             new FlagMetaInfo(Set.of(FlagTagRegister.ENVIRONMENT, FlagTagRegister.BLOCK), FlagFrequency.LOW));
+    public static final Flag PASSIVE_DROPS = new Flag(flagId("entity/passive_drops"),
+            new FlagMetaInfo(Set.of(FlagTagRegister.ENVIRONMENT, FlagTagRegister.ENTITY), FlagFrequency.LOW));
+    public static final Flag BLOCK_CONTACT_DAMAGE = new Flag(flagId("env/block_contact_damage"),
+            new FlagMetaInfo(Set.of(FlagTagRegister.PROTECTION, FlagTagRegister.ENVIRONMENT), FlagFrequency.NORMAL));
     public static final Flag FALL_DAMAGE = new Flag(flagId("entity/fall_damage"),
             new FlagMetaInfo(Set.of(FlagTagRegister.PROTECTION), FlagFrequency.NORMAL));
     public static final Flag FALL_DAMAGE_ANIMALS = new Flag(flagId("entity/fall_damage_animals"),
@@ -496,6 +500,8 @@ public class FlagRegister {
         registerFlag(EXPLOSION_CREEPER_BLOCK);
         registerFlag(EXPLOSION_CREEPER_ENTITY);
         registerFlag(EXPLOSION_ENTITY);
+        registerFlag(PASSIVE_DROPS);
+        registerFlag(BLOCK_CONTACT_DAMAGE);
         registerFlag(FALL_DAMAGE);
         registerFlag(FALL_DAMAGE_ANIMALS);
         registerFlag(FALL_DAMAGE_MONSTERS);

@@ -29,7 +29,7 @@ public class RegionOutlineBuilder {
         var blockDisplayTag = new CompoundTag();
         blockDisplayTag.putBoolean("Glowing", properties.glowing());
         var blockstateTag = new CompoundTag();
-        blockstateTag.putString("Name", properties.blockName());
+        blockstateTag.putString("id", properties.blockName());
         blockDisplayTag.put("block_state", blockstateTag);
         var brightnessTag = new CompoundTag();
         brightnessTag.putInt("sky", 15);

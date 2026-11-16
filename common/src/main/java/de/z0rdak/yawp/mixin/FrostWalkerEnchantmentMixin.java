@@ -23,7 +23,7 @@ public class FrostWalkerEnchantmentMixin {
     @Inject(method = "apply", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;setBlockAndUpdate(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z"), cancellable = true)
     private void apply(ServerLevel world, int level, EnchantedItemInUse itemInUse, Entity entity, Vec3 pos, CallbackInfo info) {
         if (isServerSide(world)) {
-            BlockPos blockPos = new BlockPos((int) pos.x, (int) pos.x, (int) pos.z);
+            BlockPos blockPos = BlockPos.containing(pos);
             FlagCheckRequest checkEvent = new FlagCheckRequest(blockPos, NO_WALKER_FREEZE, world.dimension(), null);
             if (Services.FLAG_EVENT_DISPATCHER.post(checkEvent)) {
                 return;

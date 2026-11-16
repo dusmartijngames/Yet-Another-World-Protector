@@ -7,7 +7,7 @@ import com.mojang.authlib.minecraft.client.ObjectMapper;
 import com.mojang.authlib.services.response.ErrorResponse;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.server.players.ProfileResolver;
+import net.minecraft.server.players.UserNameToIdResolver;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,24 +29,26 @@ public class MojangApiHelper {
     }
 
     public static void getGameProfileInfo(UUID uuid, Consumer<@Nullable GameProfile> onResult) {
+        GameProfile profile = null;
         try {
             String uuidWithOutDashes = uuid.toString().replace("-", "");
             String uri = "https://api.minecraftservices.com/minecraft/profile/lookup/" + uuidWithOutDashes;
-            onResult.accept(fetchGameProfileInfo(uri));
+            profile = fetchGameProfileInfo(uri);
         } catch (Exception e) {
-            onResult.accept(null);
             LOGGER.error("Error fetching game profile info for player '{}': {}", uuid.toString(), e);
         }
+        onResult.accept(profile);
     }
 
     public static void getGameProfileInfo(String username, Consumer<@Nullable  GameProfile> onResult) {
+        GameProfile profile = null;
         try {
             String uri = "https://api.mojang.com/users/profiles/minecraft/" + username;
-            onResult.accept(fetchGameProfileInfo(uri));
+            profile = fetchGameProfileInfo(uri);
         } catch (Exception e) {
-            onResult.accept(null);
             LOGGER.error("Error fetching game profile info for player '{}': {}", username, e);
         }
+        onResult.accept(profile);
     }
 
     /**
@@ -58,6 +60,9 @@ public class MojangApiHelper {
             InputStream inputStream = null;
             try {
                 final int status = connection.getResponseCode();
+                if (status == HttpURLConnection.HTTP_NO_CONTENT || status == HttpURLConnection.HTTP_NOT_FOUND) {
+                    return null;
+                }
 
                 final String result;
                 if (status < 400) {
@@ -66,7 +71,12 @@ public class MojangApiHelper {
                     if (result.isEmpty()) {
                         return null;
                     }
-                    return OBJECT_MAPPER.readValue(result, GameProfile.class);
+                    // Lookup endpoints return identity only. GameProfile's properties are required in authlib 10.
+                    var identity = OBJECT_MAPPER.readValue(result, com.mojang.authlib.services.response.NameAndId.class);
+                    if (identity == null || identity.id() == null || identity.name() == null || identity.name().isBlank()) {
+                        return null;
+                    }
+                    return new GameProfile(identity.id(), identity.name());
                 } else {
                     final String contentType = connection.getContentType();
                     inputStream = connection.getErrorStream();
@@ -74,10 +84,13 @@ public class MojangApiHelper {
                     if (inputStream != null) {
                         result = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
                         if (contentType != null && contentType.startsWith("text/html")) {
-                            LOGGER.error("Got an error with a html body connecting to {}: {}", uri, result);
                             throw new MinecraftClientHttpException(status);
                         }
-                        errorResponse = OBJECT_MAPPER.readValue(result, ErrorResponse.class);
+                        try {
+                            errorResponse = OBJECT_MAPPER.readValue(result, ErrorResponse.class);
+                        } catch (RuntimeException invalidErrorBody) {
+                            throw new MinecraftClientHttpException(status);
+                        }
                         throw new MinecraftClientHttpException(status, errorResponse);
                     } else {
                         throw new MinecraftClientHttpException(status);
@@ -89,6 +102,7 @@ public class MojangApiHelper {
                     MinecraftClientException.ErrorType.SERVICE_UNAVAILABLE , "Failed to read from " + uri + " due to " + e.getMessage(), e);
             } finally {
                 IOUtils.closeQuietly(inputStream);
+                connection.disconnect();
             }
         } catch (URISyntaxException|MalformedURLException e) {
             LOGGER.error("Could not create URL of {}", uri);
@@ -97,18 +111,20 @@ public class MojangApiHelper {
     }
 
     public static Optional<GameProfile> lookupGameProfileInCache(CommandContext<CommandSourceStack> ctx, String playerName) {
-        ProfileResolver profileResolver = ctx.getSource().getServer().services().profileResolver();
-        // Uses Mojang's API to retrieve info from player repo. It invokes
-        // YggdrasilGameProfileRepository.findProfilesByNames through the PlayerProfileCache
-        // which itself makes an HTTP request to Mojang's API
-        return profileResolver.fetchByName(playerName);
+        // A name-cache miss may query the name lookup API; callers must run this off the server thread.
+        return lookupGameProfileInCache(ctx.getSource().getServer().services().nameToIdCache(), playerName);
     }
 
     public static Optional<GameProfile> lookupGameProfileInCache(CommandContext<CommandSourceStack> ctx, UUID uuid) {
-        ProfileResolver profileResolver = ctx.getSource().getServer().services().profileResolver();
-        // This in contrast to the name search does not make an HTTP request
-        // It just looks up the profile in the cache
-        return profileResolver.fetchById(uuid);
+        return lookupGameProfileInCache(ctx.getSource().getServer().services().nameToIdCache(), uuid);
+    }
+
+    public static Optional<GameProfile> lookupGameProfileInCache(UserNameToIdResolver resolver, String playerName) {
+        return resolver.get(playerName).map(identity -> new GameProfile(identity.id(), identity.name()));
+    }
+
+    public static Optional<GameProfile> lookupGameProfileInCache(UserNameToIdResolver resolver, UUID uuid) {
+        return resolver.get(uuid).map(identity -> new GameProfile(identity.id(), identity.name()));
     }
 
     /**

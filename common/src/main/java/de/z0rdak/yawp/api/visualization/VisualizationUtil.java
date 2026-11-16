@@ -29,9 +29,10 @@ public final class VisualizationUtil {
         try {
             var entityDataAccessor = new EntityDataAccessor(blockDisplayEntity);
             CompoundTag entityTag = entityDataAccessor.getData();
-            CompoundTag blockState = entityTag.getCompound("block_state").get();
-            blockState.putString("Name", blockRl.toString());
-            entityTag.put("block_state", blockState);            entityDataAccessor.setData(entityTag);
+            CompoundTag blockState = new CompoundTag();
+            blockState.putString("id", blockRl.toString());
+            entityTag.put("block_state", blockState);
+            entityDataAccessor.setData(entityTag);
         } catch (CommandSyntaxException e) {
             Constants.LOGGER.error("Should not happend - what did you do?!", e);
             throw new RuntimeException(e);
@@ -103,8 +104,8 @@ public final class VisualizationUtil {
         try {
             var entityDataAccessor = new EntityDataAccessor(blockDisplayEntity);
             CompoundTag entityTag = entityDataAccessor.getData();
-            CompoundTag blockState = entityTag.getCompound("block_state").get();
-            blockState.putString("Name", properties.blockRl().toString());
+            CompoundTag blockState = new CompoundTag();
+            blockState.putString("id", properties.blockRl().toString());
             entityTag.put("block_state", blockState);
             entityTag.putBoolean("Glowing", properties.hasGlow());
             var brightnessTag = new CompoundTag();
@@ -198,7 +199,7 @@ public final class VisualizationUtil {
 
         // Block Display Tags
         var blockstateTag = new CompoundTag();
-        blockstateTag.putString("Name", properties.blockRl().toString());
+        blockstateTag.putString("id", properties.blockRl().toString());
         blockDisplayTag.put("block_state", blockstateTag);
 
         return blockDisplayTag;

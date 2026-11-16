@@ -7,6 +7,7 @@ import de.z0rdak.yawp.core.flag.RegionFlag;
 import de.z0rdak.yawp.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.wither.WitherBoss;
@@ -16,6 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.loot.LootTable;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -25,12 +27,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
+import java.util.function.BiConsumer;
+
 import static de.z0rdak.yawp.core.flag.RegionFlag.*;
 import static de.z0rdak.yawp.handler.HandlerUtil.*;
 import static de.z0rdak.yawp.api.MessageSender.sendFlagMsg;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin {
+
+    @Inject(method = "dropFromGiftLootTable", at = @At("HEAD"), cancellable = true, allow = 1)
+    private void onPassiveDrop(ServerLevel level, ResourceKey<LootTable> lootTable,
+                               BiConsumer<ServerLevel, ItemStack> consumer, CallbackInfoReturnable<Boolean> cir) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        FlagCheckRequest request = new FlagCheckRequest(self.blockPosition(), PASSIVE_DROPS, level.dimension());
+        if (Services.FLAG_EVENT_DISPATCHER.post(request)) {
+            return;
+        }
+        // The caller continues normally, including resetting egg/scute timers after a blocked drop.
+        FlagEvaluator.processCheck(request, denied -> cir.setReturnValue(false));
+    }
 
     @Unique
     @Nullable
@@ -166,7 +182,7 @@ public abstract class LivingEntityMixin {
      * as vanilla would do it when the gamerule doMobgrief is set to false
      */
     @Inject(method = "createWitherRose", locals = LocalCapture.CAPTURE_FAILSOFT,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;I)Z"), cancellable = true, allow = 1)
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;setBlockAndUpdate(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z"), cancellable = true, allow = 1)
     public void onCreateWitherRose(@Nullable LivingEntity adversary, CallbackInfo ci, ServerLevel level, boolean bl, BlockPos pos, BlockState blockState) {
         LivingEntity self = (LivingEntity) (Object) this;
         Level world = self.level();

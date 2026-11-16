@@ -6,8 +6,11 @@ import de.z0rdak.yawp.api.events.flag.FlagCheckRequest;
 import de.z0rdak.yawp.config.server.FlagConfig;
 import de.z0rdak.yawp.constants.Constants;
 import de.z0rdak.yawp.core.flag.FlagState;
+import de.z0rdak.yawp.core.flag.RegionFlag;
 import de.z0rdak.yawp.platform.Services;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
@@ -32,6 +35,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.HasCustomInventoryScreen;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.entity.npc.wanderingtrader.WanderingTrader;
 import net.minecraft.world.entity.vehicle.ContainerEntity;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.context.UseOnContext;
@@ -50,6 +56,8 @@ import java.util.Set;
 
 import static de.z0rdak.yawp.core.flag.RegionFlag.*;
 import static de.z0rdak.yawp.handler.HandlerUtil.getDimKey;
+import static de.z0rdak.yawp.handler.HandlerUtil.isAnimal;
+import static de.z0rdak.yawp.handler.HandlerUtil.isMonster;
 import static de.z0rdak.yawp.handler.HandlerUtil.isServerSide;
 
 /**
@@ -65,16 +73,60 @@ public final class PlayerFlagHandler {
     public static void register() {
         EntitySleepEvents.ALLOW_SLEEPING.register(PlayerFlagHandler::onAllowSleeping);
         EntitySleepEvents.ALLOW_SETTING_SPAWN.register(PlayerFlagHandler::onSettingSpawn);
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register(PlayerFlagHandler::onPlayerDamage);
         // EntityElytraEvents.ALLOW.register(PlayerFlagHandler::onElytraFlight);
 
         UseItemCallback.EVENT.register(PlayerFlagHandler::onUseItem);
         UseBlockCallback.EVENT.register(PlayerFlagHandler::onUseBlock);
         UseEntityCallback.EVENT.register(PlayerFlagHandler::onUseEntity);
+        AttackEntityCallback.EVENT.register(PlayerFlagHandler::onAttackEntity);
 
         BlockTransformerEvents.MODIFY.register(PlayerFlagHandler::onToolSecondary);
 
         PlayerBlockBreakEvents.BEFORE.register(PlayerFlagHandler::onAttemptBreakBlock);
         PlayerBlockBreakEvents.CANCELED.register(PlayerFlagHandler::onBreakBlockCanceled);
+    }
+
+    private static boolean onPlayerDamage(LivingEntity entity, DamageSource source, float amount) {
+        if (!(entity instanceof Player player)) {
+            return true;
+        }
+        FlagCheckRequest request = new FlagCheckRequest(player.blockPosition(), INVINCIBLE, getDimKey(player), player);
+        return Services.FLAG_EVENT_DISPATCHER.post(request)
+                || FlagEvaluator.process(request).state() != FlagState.ALLOWED;
+    }
+
+    private static InteractionResult onAttackEntity(Player player, Level level, InteractionHand hand,
+                                                    Entity target, @Nullable EntityHitResult hitResult) {
+        if (!isServerSide(level) || player.isSpectator()) {
+            return InteractionResult.PASS;
+        }
+
+        if (target instanceof Player && isAttackDenied(player, target, NO_PVP)) {
+            return InteractionResult.FAIL;
+        }
+
+        RegionFlag meleeFlag = null;
+        if (target instanceof Player) {
+            meleeFlag = MELEE_PLAYERS;
+        } else if (isAnimal(target)) {
+            meleeFlag = MELEE_ANIMALS;
+        } else if (isMonster(target)) {
+            meleeFlag = MELEE_MONSTERS;
+        } else if (target instanceof Villager) {
+            meleeFlag = MELEE_VILLAGERS;
+        } else if (target instanceof WanderingTrader) {
+            meleeFlag = MELEE_WANDERING_TRADER;
+        }
+
+        return meleeFlag != null && isAttackDenied(player, target, meleeFlag)
+                ? InteractionResult.FAIL : InteractionResult.PASS;
+    }
+
+    private static boolean isAttackDenied(Player player, Entity target, RegionFlag flag) {
+        FlagCheckRequest request = new FlagCheckRequest(target.blockPosition(), flag, getDimKey(target), player);
+        return !Services.FLAG_EVENT_DISPATCHER.post(request)
+                && FlagEvaluator.processCheck(request, MessageSender::sendFlagMsg) == FlagState.DENIED;
     }
 
     private static void onToolSecondary(

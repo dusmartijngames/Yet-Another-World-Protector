@@ -9,6 +9,7 @@ import de.z0rdak.yawp.data.region.RegionDataManager;
 import de.z0rdak.yawp.handler.YawpEventHandler;
 import de.z0rdak.yawp.handler.flags.DelayedServerTasks;
 import de.z0rdak.yawp.handler.flags.PlayerFlagHandler;
+import de.z0rdak.yawp.handler.flags.BlockContactFlagHandler;
 import de.z0rdak.yawp.platform.Services;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -32,6 +33,7 @@ public class YetAnotherWorldProtector implements ModInitializer, YAWPModInitiali
 
         // register flag handlers
         PlayerFlagHandler.register();
+        BlockContactFlagHandler.register();
         ServerLifecycleEvents.SERVER_STARTING.register(YawpEventHandler::storeRef);
 
         DelayedServerTasks.initialize();

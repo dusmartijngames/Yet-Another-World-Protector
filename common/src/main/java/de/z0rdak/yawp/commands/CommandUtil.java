@@ -10,6 +10,7 @@ import de.z0rdak.yawp.api.commands.CommandConstants;
 import de.z0rdak.yawp.api.core.RegionManager;
 import de.z0rdak.yawp.api.events.flag.FlagEvent;
 import de.z0rdak.yawp.api.permission.Permissions;
+import de.z0rdak.yawp.constants.Constants;
 import de.z0rdak.yawp.commands.arguments.flag.IFlagArgumentType;
 import de.z0rdak.yawp.commands.arguments.region.RegionArgumentType;
 import de.z0rdak.yawp.core.flag.BooleanFlag;
@@ -438,7 +439,7 @@ public class CommandUtil {
             MutableComponent cacheMiss = Component.translatableWithFallback("cli.msg.info.player.lookup.pending", "No cache entry existing for '%s'. Looking up %s at Mojang...",
                     playerUuid.toString(), "uuid");
             sendCmdFeedback(ctx.getSource(), cacheMiss);
-            CompletableFuture.runAsync(() -> MojangApiHelper.getGameProfileInfo(playerUuid, (gameProfile) -> {
+            CompletableFuture.runAsync(() -> MojangApiHelper.getGameProfileInfo(playerUuid, (gameProfile) -> ctx.getSource().getServer().execute(() -> {
                 if (gameProfile != null) {
                     MutableComponent lookupSuccess = Component.translatableWithFallback("cli.msg.info.player.lookup.api.success", "Successfully retrieved game profile info for '%s' from Mojang", playerUuid.toString());
                     sendCmdFeedback(ctx.getSource(), lookupSuccess);
@@ -447,7 +448,7 @@ public class CommandUtil {
                     MutableComponent lookupFailed = Component.translatableWithFallback("cli.msg.info.player.lookup.api.failed", "Unable to retrieve game profile info for '%s' from Mojang", playerUuid.toString());
                     sendCmdFeedback(ctx.getSource(), lookupFailed);
                 }
-            }));
+            })));
             return 0;
         }
     }
@@ -462,32 +463,23 @@ public class CommandUtil {
     }
 
     private static int addPlayerByName(CommandContext<CommandSourceStack> ctx, String playerName, IProtectedRegion region, String group) {
-        Optional<GameProfile> cachedProfile = MojangApiHelper.lookupGameProfileInCache(ctx, playerName);
-        if (cachedProfile.isPresent()) {
-            GameProfile profile = cachedProfile.get();
-            var isComplete = profile.id() != null && StringUtils.isNotBlank(profile.name());
-            if (isComplete) {
-                MutableComponent cacheSuccess = Component.translatableWithFallback("cli.msg.info.player.lookup.cache.success", "Found entry for '%s' in the cache", playerName);
-                sendCmdFeedback(ctx.getSource(), cacheSuccess);
-                return addPlayer(ctx, profile.id(), profile.name(), region, group);
-            }
-            return -1;
-        } else {
-            MutableComponent cacheMiss = Component.translatableWithFallback("cli.msg.info.player.lookup.pending", "No cache entry existing for '%s'. Looking up %s at Mojang...",
-                    playerName, "name");
-            sendCmdFeedback(ctx.getSource(), cacheMiss);
-            CompletableFuture.runAsync(() -> MojangApiHelper.getGameProfileInfo(playerName, (gameProfile) -> {
-                if (gameProfile != null) {
-                    MutableComponent lookupSuccess = Component.translatableWithFallback("cli.msg.info.player.lookup.api.success", "Successfully retrieved game profile info for '%s' from Mojang", playerName);
-                    sendCmdFeedback(ctx.getSource(), lookupSuccess);
-                    addPlayer(ctx, gameProfile.id(), gameProfile.name(), region, group);
-                } else {
-                    MutableComponent lookupFailed = Component.translatableWithFallback("cli.msg.info.player.lookup.api.failed", "Unable to retrieve game profile info for '%s' from Mojang", playerName);
-                    sendCmdFeedback(ctx.getSource(), lookupFailed);
-                }
-            }));
-            return 0;
-        }
+        sendCmdFeedback(ctx.getSource(), Component.translatableWithFallback("cli.msg.info.player.lookup.resolving",
+                "Looking up player '%s'...", playerName));
+        // The identity cache can perform a network lookup on a miss, but never needs skin/session properties.
+        CompletableFuture.supplyAsync(() -> MojangApiHelper.lookupGameProfileInCache(ctx, playerName))
+                .whenComplete((profile, error) -> ctx.getSource().getServer().execute(() -> {
+                    if (error != null) {
+                        Constants.LOGGER.warn("Could not resolve player '{}': {}", playerName, error.toString());
+                    }
+                    if (error == null && profile.isPresent()) {
+                        GameProfile resolved = profile.get();
+                        addPlayer(ctx, resolved.id(), resolved.name(), region, group);
+                    } else {
+                        sendCmdFeedback(ctx.getSource(), Component.translatableWithFallback("cli.msg.info.player.lookup.api.failed",
+                                "Unable to retrieve game profile info for '%s' from Mojang", playerName));
+                    }
+                }));
+        return 0;
     }
 
     public static int addPlayers(CommandContext<CommandSourceStack> ctx, Collection<ServerPlayer> players, IProtectedRegion region, String group) {

@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 
 import de.z0rdak.yawp.core.flag.PortalTransferFlags;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.portal.TeleportTransition;
@@ -30,14 +31,27 @@ public abstract class EntityMixin {
      *
      * <p>Non-player entities are passed through without changing the context.</p>
      */
-    @WrapOperation(method = "handlePortal", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/world/entity/Entity;"))
-    private Entity markPortalTransfer(Entity entity, TeleportTransition transition, Operation<Entity> original) {
+    @WrapOperation(
+            method = "handlePortal",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/entity/Entity;teleportToPortalDestination(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/level/portal/TeleportTransition;)V"
+            )
+    )
+    private void markPortalTransfer(
+            Entity entity,
+            ServerLevel level,
+            TeleportTransition transition,
+            Operation<Void> original) {
+
         if (!(entity instanceof ServerPlayer player)) {
-            return original.call(entity, transition);
+            original.call(entity, level, transition);
+            return;
         }
+
         ServerPlayer previous = PortalTransferFlags.enter(player);
         try {
-            return original.call(entity, transition);
+            original.call(entity, level, transition);
         } finally {
             PortalTransferFlags.exit(previous);
         }
